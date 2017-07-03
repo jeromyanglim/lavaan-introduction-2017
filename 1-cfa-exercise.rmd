@@ -1,0 +1,121 @@
+# Initialise Project
+```{r knitr_configuration}
+library(knitr)
+opts_knit$set(root.dir = normalizePath('../')) # required when rmd is in subdirectory
+```
+
+```{r load_project}
+library(ProjectTemplate); load.project()
+```             
+
+# Explore
+```{r}
+fac1 <- factanal(ccases[ , v$items], factors = 5, rotation = "promax")
+psych::scree(ccases[ , v$items])
+print(fac1, cutoff = .3)
+?loadings
+```
+
+
+# Basic CFA
+
+```{r}
+v$items
+
+models <- list()
+fits <- list()
+
+models$m1 <- 
+    'global  =~ a3 + a1 + a2 + a4 + a5 + c1 + c2 + c3 + c4 + c5 + e1 + e2 + e3 + e4 + e5 + n1 + n2 + n3 + n4 + n5 + o1 + o2 + o3 + o4 + o5'
+# paste(v$items, collapse = " + ")
+
+# five factor model
+models$m2 <- 
+    ' agree =~ a3 + a1 + a2 + a4 + a5 
+      consc =~ c1 + c2 + c3 + c4 + c5 
+      extra =~ e3 + e1 + e2 + e4 + e5 
+      neuro =~ n1 + n2 + n3 + n4 + n5 
+      open  =~ o1 + o2 + o3 + o4 + o5'
+models$m3 <- models$m2
+
+
+fits$m1 <- lavaan::cfa(models$m1, data = ccases)
+fits$m2 <- lavaan::cfa(models$m2, data = ccases, orthogonal = TRUE)
+fits$m3 <- lavaan::cfa(models$m3, data = ccases, orthogonal = FALSE)
+
+summary(fits$m1, fit.measures = TRUE) 
+standardizedSolution(fits$m1)
+
+summary(fits$m2, fit.measures = TRUE) 
+standardizedSolution(fits$m2)
+v$fitindicies
+
+summary(fits$m3, fit.measures = TRUE) 
+standardizedSolution(fits$m3)
+
+sapply(fits, function(X) core_fitmeasures(X))
+
+
+mod_ind <- modificationindices(fits$m3)
+head(mod_ind[order(mod_ind$mi, decreasing=TRUE), ], 10)
+meta.personality[ meta.personality$name %in% c("n1", "n2", "n3", "n4", "n5"), ]
+
+
+models$m4 <- 
+    ' agree =~ a3 + a1 + a2 + a4 + a5 
+      consc =~ c1 + c2 + c3 + c4 + c5 
+      extra =~ e3 + e1 + e2 + e4 + e5 
+      neuro =~ n1 + n2 + n3 + n4 + n5 
+      open  =~ o1 + o2 + o3 + o4 + o5
+    
+    # correlated residuals
+    n1 ~~ n2
+    '
+fits$m4 <- lavaan::cfa(models$m4, data = ccases, orthogonal = FALSE)
+
+sapply(fits, function(X) core_fitmeasures(X))
+anova(fits$m3, fits$m4)
+
+
+models$m5 <- 
+    ' agree =~ a3 + a1 + a2 + a4 + a5 
+      consc =~ c1 + c2 + c3 + c4 + c5 + e5
+      extra =~ e3 + e1 + e2 + e4 + e5 
+      neuro =~ n1 + n2 + n3 + n4 + n5 
+      open  =~ o1 + o2 + o3 + o4 + o5
+    
+    # correlated residuals
+    n1 ~~ n2
+    '
+
+mod_ind <- modificationindices(fits$m4)
+head(mod_ind[order(mod_ind$mi, decreasing=TRUE), ], 10)
+
+fits$m5 <- lavaan::cfa(models$m5, data = ccases, orthogonal = FALSE)
+sapply(fits, function(X) core_fitmeasures(X))
+
+
+models$m6 <- 
+    ' agree =~ a3 + a1 + a2 + a4 + a5 
+      consc =~ c1 + c2 + c3 + c4 + c5 
+      extra =~ e3 + e1 + e2 + e4 + e5 
+      neuro =~ n1 + n2 + n3 + n4 + n5 
+      open  =~ o1 + o2 + o3 + o4 + o5
+    
+      global =~ 1 * agree + consc + extra + neuro + open'
+
+fits$m6 <- lavaan::cfa(models$m6, data = ccases, orthogonal = TRUE)
+
+
+sumtable <- sapply(fits, function(X) core_fitmeasures(X))
+sumtable <- t(sumtable)
+sumtable
+write.csv(sumtable, file = "output/sumtable.csv")
+
+
+```
+
+
+
+
+

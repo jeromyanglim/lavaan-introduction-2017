@@ -1,0 +1,241 @@
+# Initialise Project
+```{r load_project}
+library(ProjectTemplate); load.project()
+```             
+
+
+# installation notes
+
+Download and install R and Rstudio
+
+* R: http://cran.rstudio.com/
+* Rstudio: http://www.rstudio.com/products/RStudio/
+
+Install lavaan and any other necessary packages
+
+```{r}
+# install.packages("lavaan")
+
+# I also make us of 
+# install.packages("psych")
+# install.packages("ProjectTemplate")
+```
+
+
+# Help files
+
+* http://lavaan.ugent.be/
+The lavaan website is very user friendly.
+
+* http://lavaan.ugent.be/tutorial/index.html
+The site has many useful tutorials.
+
+* R Help for lavaan is also very useful.
+    * ?inspect : Help on the many different objects that can be extracted from a model fit
+    * ?lavOptions : Help on the many additional arguments that can be used when model fitting with cfa/sem/growth/lavaan
+    * ?"lavaan-class" : Shows the various methods that can be used with model fits
+    
+Original reference
+Yves Rosseel (2012). lavaan: An R Package for Structural Equation Modeling. Journal of Statistical Software, 48(2), 1-36. URL http://www.jstatsoft.org/v48/i02/
+
+* My lecture on CFA:
+https://www.youtube.com/watch?v=BZWpAwd_xDs
+
+* Video of CFA with lavaan:
+https://www.youtube.com/watch?v=gcrXP2yMYY8
+
+
+
+```{r}
+# Load lavaan
+library(lavaan)
+
+# load data (e.g., from spss)
+library(foreign)
+ccases <- read.spss("data/ccases.sav", to.data.frame = TRUE, use.value.labels = FALSE)
+
+# check data
+head(ccases)
+names(ccases) <- tolower(names(ccases))
+
+# Model syntax http://lavaan.ugent.be/tutorial/syntax1.html
+# ~ predict
+# =~ indicator
+# ~~ correlate
+# ~1 intercept
+
+
+# Step 1. Specify model
+model <- "
+agreeableness =~ a1 + a2 + a3
+conscientiousness =~ c1 + c2 + c3
+extraversion =~ e1 + e2 + e3
+"
+
+# View model
+cat(model)
+
+# fit model using CFA defaults
+fit <- cfa(model = model, data = ccases)
+# see also
+# sem(model, ccases)
+
+# viewing model
+# overview of fit and parameters
+summary(fit)
+
+# Other arguments for summary method
+# ?`lavaan-class`
+# (object = "lavaan", header = TRUE, fit.measures=FALSE, estimates = TRUE, 
+# ci = FALSE, fmi = FALSE, standardized = FALSE, 
+# rsquare=FALSE, std.nox = FALSE, modindices=FALSE, ci=FALSE, nd = 3L)
+
+summary(fit, standardized = TRUE)
+
+
+# unstandardized parameters
+parameterestimates(fit)
+
+# standardized parameters
+standardizedsolution(fit)
+
+# Extract subset of parameters
+# This is useful when you have many parameters
+sfit <- standardizedsolution(fit)
+
+# Just the loadings
+sfit[ sfit$op == "=~", ] 
+
+# Just correlations
+sfit[ sfit$op == "~~" & sfit$lhs != sfit$rhs, ] 
+
+# Just residual variances
+sfit[ sfit$op == "~~" & sfit$lhs == sfit$rhs, ] 
+
+
+
+########################
+# fit measures
+# all fit measures
+fitmeasures(fit)
+
+# Or select the subset of interest
+fitmeasures(fit, c("npar", "chisq", "df", "cfi", "rmsea", "srmr"))
+
+
+
+########################
+# Other model features
+
+# Look up the help for inspect to see many objects that can be returned
+# ?inspect
+# inspect(fit, what = "")
+
+# variance explained
+inspect(fit, 'r2')
+
+# Sample means and covariance matrix
+inspect(fit, "sampstat")
+
+# Unstandardized model matrices
+est_fit <- inspect(fit, "est")
+est_fit$lambda # unstandardised loadings
+est_fit$psi # latent variable covariance matrix
+
+# Standardized model matrices
+std_fit <- inspect(fit, "std")
+std_fit$lambda # standardised loadings
+std_fit$psi # latent variable correlation matrix
+
+
+# compare models
+fits <- list()
+fits$fit1 <- fit
+
+# orthogonal model
+fits$fit0 <- cfa(model, ccases, orthogonal = TRUE)
+
+# add residual 
+# example of adding terms
+# paste0 combines text
+# "\n" represents new line
+model2 <- paste0(model, "\n", "a1 ~~ a2")
+# cat(model2)
+fits$fit2 <- cfa(model2, ccases)
+
+# combine into table
+round(sapply(fits, fitmeasures), 3) # all output
+# subset of fits
+round(sapply(fits, function(X) 
+    fitmeasures(X,  c("chisq", "df", "cfi", "rmsea", "srmr"))), 3)
+
+# chisquare difference test
+anova(fits$fit0, fits$fit1)
+
+
+# Residuals
+# unstandardized residuals 
+# e.g., covariance matrix
+resid(fit)
+
+# standardized residuals
+# 
+resid(fit, type = "cor")
+
+resid(fit, type = "cor")
+
+
+# modification indices
+mod_ind <- modificationindices(fit)
+
+# you will get many modification indices
+# and some will not make sense
+# mod_ind
+
+# top 10 softed by size
+head(mod_ind[order(mod_ind$mi, decreasing=TRUE), ], 10)
+
+# all those above 10
+ordered_mod <- mod_ind[order(mod_ind$mi, decreasing=TRUE), ]
+ordered_mod[ordered_mod$mi > 10, ]
+
+
+#######################
+# add predicted values to data file
+pfit <- data.frame(predict(fit))
+ccases2 <- cbind(ccases, pfit)
+# head(ccases2)
+
+
+
+# sem models
+ccases$male <- as.numeric(ccases$gender == 1)
+
+sem_model <- "
+agreeableness =~ a1 + a2 + a3
+conscientiousness =~ c1 + c2 + c3
+extraversion =~ e1 + e2 + e3
+
+conscientiousness ~ age + male
+agreeableness ~ age + male
+extraversion  ~ age + male
+"
+
+semfit <- sem(sem_model, ccases)
+
+pfit <- parameterestimates(semfit)
+pfit[pfit$op == "~", ]
+
+sfit <- standardizedsolution(semfit)
+sfit[sfit$op == "~", ]
+```
+
+
+# Plotting
+```{r}
+# install.packages("semPlot")
+library(semPlot)
+semPaths(semfit, "std")
+```
+
+
